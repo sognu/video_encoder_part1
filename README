@@ -1,0 +1,83 @@
+****************************************************************
+Video encoder that interfaces with the FFMPEG library
+****************************************************************
+
+
+README		- This file
+
+# source files
+utahenc, utahdec, {c}	- Primary source code
+utah {h}	        - Function declerations
+
+
+Interfacing with the FFMPEG library:
+Add code to ffmpeg to 'register' the utah format. You cannot just add source code files; you need
+to tell ffmpeg that a new codec exists. These changes are what 'hook' your codec into
+ffmpeg. (We will make these exact changes in our test version of ffmpeg.)
+Add "AV_CODEC_ID_UTAH" to "enum AVCodecID{}" in
+ffmpeg/libavcodec/avcodec.h. This creates an integer constant that is associated with
+your codec. Update: The following three lines show where we will declare the codec
+for testing:
+AV_CODEC_ID_VP9,
+AV_CODEC_ID_UTAH, /* Our codec ID tag, integer value unknown */
+AV_CODEC_ID_BRENDER_PIX= MKBETAG('B','P','I','X'),
+Add "{ AV_CODEC_ID_UTAH, "utah" }, as the second to last array entry in "static
+const IdStrMap img_tags[]" in ffmpeg/libavformat/img2.c. This assigns a string
+identifier to the utah codec. It is unclear how this identifier is used.
+In libavformat/img2enc.c, find the structure definition "AVOutputFormat
+ff_image2_muxer = {/*...*/};", and in the ".extensions" section, add "utah" into
+it. This tells ffmpeg to use the img2 muxer during the process of encoding .utah
+files. (Above, we indicate that the img2 demuxer should be used during decoding of
+.utah files, and we can make use of similar functionality to encode .utah files.)
+Add "REGISTER_ENCDEC (UTAH, utah);" into "void avcodec_register_all(void)"
+of libavcodec/allcodecs.c. Place this statement in the video codecs section of this
+function. This macro expands into statements that execute at runtime to connect your
+codec files to ffmpeg.
+Add the following codec descriptor to to the codec_descriptors array in
+ffmpeg/libavcodec/codec_desc.c. Place it first in the video codec descriptors
+section:
+{ /* UTAH description */
+.id
+= AV_CODEC_ID_UTAH,
+.type
+= AVMEDIA_TYPE_VIDEO,
+.name
+= "utah",
+.long_name = NULL_IF_CONFIG_SMALL("UTAH (Built for CS 3505 in U
+of U) image"),
+.props
+= AV_CODEC_PROP_LOSSY,
+},
+The above changes will cause ffmpeg to see your codec, but you haven't added one yet, and you
+haven't modified the makefile yet. (Don't build yet.) In addition, ffmpeg now knows there is a
+video codec named "utah", but it doesn't know anything about it.
+Modify the makefile so that it will build your codec. Your codec will consist of "utahdec.c",
+"utahenc.c", and any other utah files you want to add (up to ten). You need to modify the
+makefile so that these files will be compiled when needed.
+Edit ffmpeg/libavcodec/Makefile. Find the section in the makefile labeled
+decoders/encoders... In that section, find an appropriate spot and add the following lines
+of code:
+OBJS-$(CONFIG_UTAH_DECODER)
+OBJS-$(CONFIG_UTAH_ENCODER)
++= utahdec.o
++= utahenc.o
+You are editing a makefile, so spacing and tabs matter. (The above text does not have
+any leading spaces, and no tab characters.)
+If you add any additional files to ffmpeg for your codec, make sure they exist within
+ffmpeg/libavcodec, that their name starts with "utah", and that you modify the above
+lines to require that object files be built from your .c files (as needed). If you look at the
+Makefile rules for the other codecs, you can see how multiple files are specified as
+requirements for that codec.
+Create the source code files for your codec. Place your decoder in "utahdec.c" and your
+encoder in "utahenc.c". If you have definitions that are needed in both files, place them in
+"utah.h".
+It is up to you to create and test these codec files.
+
+Reconfigure and rebuild your project. Any time you change the makefile or add additional .c or
+.h files, you will need to reconfigure and rebuild your project. If you only edit .c or .h files, you
+can simply re-make your project.
+Testing your codec:
+To convert an image:
+ffmpeg -i image.bmp image.utah
+To display an image:
+ffplay image.utah
